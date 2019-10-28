@@ -137,7 +137,7 @@ int main(int argc,char **argv) {
 	/********** SUBTASK2: Set up device memory *******************************/
 
 	int *result;
-	cudaMalloc((void *) &result, XSIZE * YSIZE * sizeof(int));
+	cudaMalloc((void **) &result, XSIZE * YSIZE * sizeof(int));
 
 	/********** SUBTASK2 END *************************************************/
 
