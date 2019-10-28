@@ -144,8 +144,8 @@ int main(int argc,char **argv) {
 	start=walltime();
 	/********** SUBTASK3: Execute the kernel on the device *******************/
 
-	dim3gridBlock(XSIZE / BLOCKX, YSIZE / BLOCKY);
-	dim3threadBlock(BLOCKX, BLOCKY);
+	dim3 gridBlock(XSIZE / BLOCKX, YSIZE / BLOCKY);
+	dim3 threadBlock(BLOCKX, BLOCKY);
 	device_calculate<<<gridBlock, threadBlock>>>(result, xleft, yupper, step);
 
 	/********** SUBTASK3 END *************************************************/
