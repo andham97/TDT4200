@@ -279,7 +279,7 @@ int main(int argc, char **argv) {
   cudaFree(filter);
 
   if (CPU == 0) {
-    cudaMemcpy(imageChannel->rawdata, resultChannel, imageChannel->width * imageChannel->height);
+    cudaMemcpy(imageChannel->rawdata, resultChannel, imageChannel->width * imageChannel->height, cudaMemcpyDeviceToHost);
   }
 
   // Map our single color image back to a normal BMP image with 3 color channels
