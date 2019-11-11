@@ -11,7 +11,7 @@ extern "C" {
 #define BLOCKX 8
 #define BLOCKY 8
 #define CPU 1
-#define PIXEL(i,j) ((i)+(j)*XSIZE)
+#define PIXEL(i,j,w) ((i)+(j)*(w))
 
 #define cudaErrorCheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -82,14 +82,14 @@ __global__ void deviceApplyFilter(unsigned char *out, unsigned char *in, unsigne
       int yy = y + (ky - filterCenter);
       int xx = x + (kx - filterCenter);
       if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height)
-        aggregate += in[PIXEL(xx, yy)] * filter[nky * filterDim + nkx];
+        aggregate += in[PIXEL(xx, yy, width)] * filter[nky * filterDim + nkx];
     }
   }
   aggregate *= filterFactor;
   if (aggregate > 0) {
-    out[PIXEL(x, y)] = (aggregate > 255) ? 255 : aggregate;
+    out[PIXEL(x, y, width)] = (aggregate > 255) ? 255 : aggregate;
   } else {
-    out[PIXEL(x, y)] = 0;
+    out[PIXEL(x, y, width)] = 0;
   }
 }
 
