@@ -27,7 +27,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 // gaussian filter with dimension 5
 // If you apply another filter, remember not only to exchange
 // the filter but also the filterFactor and the correct dimension.
-
+/*
 int const sobelYFilter[] = {-1, -2, -1,
                              0,  0,  0,
                              1,  2,  1};
@@ -38,12 +38,12 @@ int const sobelXFilter[] = {-1, -0, -1,
                             -1,  0, -1 , 0};
 float const sobelXFilterFactor = (float) 1.0;
 
-
+*/
 int const laplacian1Filter[] = {  -1,  -4,  -1,
                                   -4,  20,  -4,
                                   -1,  -4,  -1};
 
-float const laplacian1FilterFactor = (float) 1.0;
+float const laplacian1FilterFactor = (float) 1.0;/*
 
 int const laplacian2Filter[] = { 0,  1,  0,
                                  1, -4,  1,
@@ -64,7 +64,7 @@ int const gaussianFilter[] = { 1,  4,  6,  4, 1,
                                4, 16, 24, 16, 4,
                                1,  4,  6,  4, 1 };
 
-float const gaussianFilterFactor = (float) 1.0 / 256.0;
+float const gaussianFilterFactor = (float) 1.0 / 256.0;*/
 
 __global__ void deviceApplyFilter(unsigned char *out, unsigned char *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
