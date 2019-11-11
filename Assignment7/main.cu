@@ -70,7 +70,7 @@ __global__ void deviceApplyFilter(unsigned char *out, unsigned char *in, unsigne
   unsigned int const filterCenter = (filterDim / 2);
   unsigned int y = blockIdx.y * BLOCKY + threadIdx.y;
   unsigned int x = blockIdx.x * BLOCKX + threadIdx.x;
-  if (y >= height || x >= width || x < 0 || y < 0) {
+  if (y >= height || x >= width) {
     return;
   }
   int aggregate = 0;
