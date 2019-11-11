@@ -275,7 +275,7 @@ int main(int argc, char **argv) {
     imageChannel->rawdata = tmp_raw;
   }
   double end = walltime();
-  printf("CPU Time: %f", (end - start));
+  printf("CPU Time: %f\n", (end - start));
 
   // GPU processing
   start = walltime();
@@ -289,7 +289,7 @@ int main(int argc, char **argv) {
     resultChannel = t;
   }
   end = walltime();
-  printf("GPU Time: %f", (end - start));
+  printf("GPU Time: %f\n", (end - start));
   
   freeBmpImageChannel(processImageChannel);
   cudaFree(processChannel);
