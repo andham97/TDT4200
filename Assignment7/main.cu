@@ -11,6 +11,7 @@ extern "C" {
 #define BLOCKX 8
 #define BLOCKY 8
 #define CPU 1
+#define PIXEL(i,j) ((i)+(j)*XSIZE)
 
 #define cudaErrorCheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -65,7 +66,7 @@ int const gaussianFilter[] = { 1,  4,  6,  4, 1,
 
 float const gaussianFilterFactor = (float) 1.0 / 256.0;
 
-__global__ void deviceApplyFilter(unsigned char **out, unsigned char **in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
+__global__ void deviceApplyFilter(unsigned char *out, unsigned char *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
   unsigned int y = blockIdx.y * BLOCKY + threadIdx.y;
   unsigned int x = blockIdx.x * BLOCKX + threadIdx.x;
@@ -81,14 +82,14 @@ __global__ void deviceApplyFilter(unsigned char **out, unsigned char **in, unsig
       int yy = y + (ky - filterCenter);
       int xx = x + (kx - filterCenter);
       if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height)
-        aggregate += in[yy][xx] * filter[nky * filterDim + nkx];
+        aggregate += in[PIXEL(xx, yy)] * filter[nky * filterDim + nkx];
     }
   }
   aggregate *= filterFactor;
   if (aggregate > 0) {
-    out[y][x] = (aggregate > 255) ? 255 : aggregate;
+    out[PIXEL(x, y)] = (aggregate > 255) ? 255 : aggregate;
   } else {
-    out[y][x] = 0;
+    out[PIXEL(x, y)] = 0;
   }
 }
 
