@@ -3,6 +3,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <stdlib.h>
+#include <sys/time.h>
 extern "C" {
     #include "libs/bitmap.h"
 }
@@ -20,6 +21,16 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
       fprintf(stderr,"GPUassert: %s %s %s %d\n", cudaGetErrorName(code), cudaGetErrorString(code), file, line);
       if (abort) exit(code);
    }
+}
+
+/*
+ * Get system time to microsecond precision (ostensibly, the same as MPI_Wtime),
+ * returns time in seconds
+ */
+double walltime ( void ) {
+	static struct timeval t;
+	gettimeofday ( &t, NULL );
+	return ( t.tv_sec + 1e-6 * t.tv_usec );
 }
 
 // Convolutional Filter Examples, each with dimension 3,
@@ -246,8 +257,10 @@ int main(int argc, char **argv) {
   //Here we do the actual computation!
   // imageChannel->data is a 2-dimensional array of unsigned char which is accessed row first ([y][x])
   bmpImageChannel *processImageChannel = newBmpImageChannel(imageChannel->width, imageChannel->height);
+
+  // CPU Processing
+  double start = walltime();
   for (unsigned int i = 0; i < iterations; i ++) {
-    // CPU
     applyFilter(processImageChannel->data,
                 imageChannel->data,
                 imageChannel->width,
@@ -260,8 +273,13 @@ int main(int argc, char **argv) {
     unsigned char * tmp_raw = processImageChannel->rawdata;
     processImageChannel->rawdata = imageChannel->rawdata;
     imageChannel->rawdata = tmp_raw;
+  }
+  double end = walltime();
+  printf("CPU Time: %f", (end - start));
 
-    // GPU
+  // GPU processing
+  start = walltime();
+  for (unsigned int i = 0; i < iterations; i ++) {
     dim3 gridBlock(imageChannel->width / BLOCKX, imageChannel->height / BLOCKY);
     dim3 threadBlock(BLOCKX, BLOCKY);
     deviceApplyFilter<<<gridBlock, threadBlock>>>(processChannel, resultChannel, imageChannel->width, imageChannel->height, filter, 3, laplacian1FilterFactor);
@@ -270,6 +288,9 @@ int main(int argc, char **argv) {
     processChannel = resultChannel;
     resultChannel = t;
   }
+  end = walltime();
+  printf("GPU Time: %f", (end - start));
+  
   freeBmpImageChannel(processImageChannel);
   cudaFree(processChannel);
   cudaFree(filter);
