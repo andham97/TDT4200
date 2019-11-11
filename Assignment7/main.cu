@@ -266,7 +266,7 @@ int main(int argc, char **argv) {
     else {
       dim3 gridBlock(imageChannel->width / BLOCKX, imageChannel->height / BLOCKY);
       dim3 threadBlock(BLOCKX, BLOCKY);
-      device_calculate<<<gridBlock, threadBlock>>>(processChannel, resultChannel, imageChannel->width, imageChannel->height, filter, 3, laplacian1FilterFactor);
+      deviceApplyFilter<<<gridBlock, threadBlock>>>(processChannel, resultChannel, imageChannel->width, imageChannel->height, filter, 3, laplacian1FilterFactor);
       cudaErrorCheck(cudaGetLastError());
       unsigned char *t = processChannel;
       processChannel = resultChannel;
