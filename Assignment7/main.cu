@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
       diff++;
   }
 
-  printf("Diff is: %d/%d", diff, (imageChannel->width * imageChannel->height));
+  printf("Error found on: %d/%d pixels\n", diff, (imageChannel->width * imageChannel->height));
 
   // Map our single color image back to a normal BMP image with 3 color channels
   // mapEqual puts the color value on all three channels the same way
