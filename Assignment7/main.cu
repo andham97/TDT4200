@@ -76,6 +76,7 @@ int const gaussianFilter[] = { 1,  4,  6,  4, 1,
 
 float const gaussianFilterFactor = (float) 1.0 / 256.0;*/
 
+// GPU version of the filter function
 __global__ void deviceApplyFilter(unsigned char *out, unsigned char *in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
   unsigned int const filterCenter = (filterDim / 2);
   unsigned int y = blockIdx.y * BLOCKY + threadIdx.y;
@@ -248,10 +249,14 @@ int main(int argc, char **argv) {
   // Initialize GPU data locations for image data
   cudaErrorCheck(cudaMalloc((void **) &processChannel, imageChannel->width * imageChannel->height));
   cudaErrorCheck(cudaMalloc((void **) &resultChannel, imageChannel->width * imageChannel->height));
+
+  // Initialize GPU location for filter
   cudaErrorCheck(cudaMalloc((void **) &filter, 9 * sizeof(int)));
 
   // Copy original image data to GPU memory
   cudaErrorCheck(cudaMemcpy(resultChannel, imageChannel->rawdata, imageChannel->width * imageChannel->height, cudaMemcpyHostToDevice));
+
+  // Copy filter data to GPU memory
   cudaErrorCheck(cudaMemcpy(filter, laplacian1Filter, 9 * sizeof(int), cudaMemcpyHostToDevice));
 
   //Here we do the actual computation!
@@ -291,14 +296,19 @@ int main(int argc, char **argv) {
   end = walltime();
   printf("GPU Time: %f\n", (end - start));
   
+  // Release processing data locations
   freeBmpImageChannel(processImageChannel);
   cudaFree(processChannel);
   cudaFree(filter);
 
+  // Load resulting image data from GPU memory
   bmpImageChannel *gpuChannel = newBmpImageChannel(imageChannel->width, imageChannel->height);
-
   cudaMemcpy(gpuChannel->rawdata, resultChannel, imageChannel->width * imageChannel->height, cudaMemcpyDeviceToHost);
 
+  // Release resulting image data from GPU memory
+  cudaFree(resultChannel);
+
+  // Checking for calculation differences between serial and GPU implementation
   int diff = 0;
   for (unsigned int i = 0; i < imageChannel->width * imageChannel->height; i++) {
     if (imageChannel->rawdata[i] != gpuChannel->rawdata[i])
@@ -316,8 +326,10 @@ int main(int argc, char **argv) {
     freeBmpImageChannel(imageChannel);
     return ERROR_EXIT;
   }
+
+  // Free up image channels
   freeBmpImageChannel(imageChannel);
-  cudaFree(resultChannel);
+  freeBmpImageChannel(gpuChannel);
 
   //Write the image back to disk
   if (saveBmpImage(image, output) != 0) {
