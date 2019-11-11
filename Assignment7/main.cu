@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
   // Initialize GPU data locations for image data
   cudaErrorCheck(cudaMalloc((void **) &processChannel, imageChannel->width * imageChannel->height));
   cudaErrorCheck(cudaMalloc((void **) &resultChannel, imageChannel->width * imageChannel->height));
-  cudaErrorCheck(cudaMalloc((void **) &filter), 9 * sizeof(int));
+  cudaErrorCheck(cudaMalloc((void **) &filter, 9 * sizeof(int)));
 
   // Copy original image data to GPU memory
   cudaErrorCheck(cudaMemcpy(resultChannel, imageChannel->rawdata, imageChannel->width * imageChannel->height, cudaMemcpyHostToDevice));
