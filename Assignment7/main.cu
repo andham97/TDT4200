@@ -10,7 +10,6 @@ extern "C" {
 #define ERROR_EXIT -1
 #define BLOCKX 8
 #define BLOCKY 8
-#define CPU 1
 #define PIXEL(i,j,w) ((i)+(j)*(w))
 
 #define cudaErrorCheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -249,38 +248,43 @@ int main(int argc, char **argv) {
   bmpImageChannel *processImageChannel = newBmpImageChannel(imageChannel->width, imageChannel->height);
   for (unsigned int i = 0; i < iterations; i ++) {
     // CPU
-    if (CPU == 1) {
-      applyFilter(processImageChannel->data,
-                  imageChannel->data,
-                  imageChannel->width,
-                  imageChannel->height,
-                  (int *)laplacian1Filter, 3, laplacian1FilterFactor);
-      //Swap the data pointers
-      unsigned char ** tmp = processImageChannel->data;
-      processImageChannel->data = imageChannel->data;
-      imageChannel->data = tmp;
-      unsigned char * tmp_raw = processImageChannel->rawdata;
-      processImageChannel->rawdata = imageChannel->rawdata;
-      imageChannel->rawdata = tmp_raw;
-    }
+    applyFilter(processImageChannel->data,
+                imageChannel->data,
+                imageChannel->width,
+                imageChannel->height,
+                (int *)laplacian1Filter, 3, laplacian1FilterFactor);
+    //Swap the data pointers
+    unsigned char ** tmp = processImageChannel->data;
+    processImageChannel->data = imageChannel->data;
+    imageChannel->data = tmp;
+    unsigned char * tmp_raw = processImageChannel->rawdata;
+    processImageChannel->rawdata = imageChannel->rawdata;
+    imageChannel->rawdata = tmp_raw;
+
     // GPU
-    else {
-      dim3 gridBlock(imageChannel->width / BLOCKX, imageChannel->height / BLOCKY);
-      dim3 threadBlock(BLOCKX, BLOCKY);
-      deviceApplyFilter<<<gridBlock, threadBlock>>>(processChannel, resultChannel, imageChannel->width, imageChannel->height, filter, 3, laplacian1FilterFactor);
-      cudaErrorCheck(cudaGetLastError());
-      unsigned char *t = processChannel;
-      processChannel = resultChannel;
-      resultChannel = t;
-    }
+    dim3 gridBlock(imageChannel->width / BLOCKX, imageChannel->height / BLOCKY);
+    dim3 threadBlock(BLOCKX, BLOCKY);
+    deviceApplyFilter<<<gridBlock, threadBlock>>>(processChannel, resultChannel, imageChannel->width, imageChannel->height, filter, 3, laplacian1FilterFactor);
+    cudaErrorCheck(cudaGetLastError());
+    unsigned char *t = processChannel;
+    processChannel = resultChannel;
+    resultChannel = t;
   }
   freeBmpImageChannel(processImageChannel);
   cudaFree(processChannel);
   cudaFree(filter);
 
-  if (CPU == 0) {
-    cudaMemcpy(imageChannel->rawdata, resultChannel, imageChannel->width * imageChannel->height, cudaMemcpyDeviceToHost);
+  bmpImageChannel *gpuChannel = newBmpImageChannel(imageChannel->width, imageChannel->height);
+
+  cudaMemcpy(gpuChannel->rawdata, resultChannel, imageChannel->width * imageChannel->height, cudaMemcpyDeviceToHost);
+
+  int diff = 0;
+  for (unsigned int i = 0; i < imageChannel->width * imageChannel->height; i++) {
+    if (imageChannel->rawdata[i] != gpuChannel->rawdata[i])
+      diff++;
   }
+
+  printf("Diff is: %d/%d", diff, (imageChannel->width * imageChannel->height));
 
   // Map our single color image back to a normal BMP image with 3 color channels
   // mapEqual puts the color value on all three channels the same way
