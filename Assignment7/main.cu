@@ -8,6 +8,9 @@ extern "C" {
 }
 
 #define ERROR_EXIT -1
+#define BLOCKX 8
+#define BLOCKY 8
+#define CPU 1
 
 #define cudaErrorCheck(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -36,8 +39,8 @@ float const sobelXFilterFactor = (float) 1.0;
 
 
 int const laplacian1Filter[] = {  -1,  -4,  -1,
-                                 -4,  20,  -4,
-                                 -1,  -4,  -1};
+                                  -4,  20,  -4,
+                                  -1,  -4,  -1};
 
 float const laplacian1FilterFactor = (float) 1.0;
 
@@ -61,6 +64,33 @@ int const gaussianFilter[] = { 1,  4,  6,  4, 1,
                                1,  4,  6,  4, 1 };
 
 float const gaussianFilterFactor = (float) 1.0 / 256.0;
+
+__global__ void deviceApplyFilter(unsigned char **out, unsigned char **in, unsigned int width, unsigned int height, int *filter, unsigned int filterDim, float filterFactor) {
+  unsigned int const filterCenter = (filterDim / 2);
+  unsigned int y = blockIdx.y * BLOCKY + threadIdx.y;
+  unsigned int x = blockIdx.x * BLOCKX + threadIdx.x;
+  if (y >= height || x >= width || x < 0 || y < 0) {
+    return;
+  }
+  int aggregate = 0;
+  for (unsigned int ky = 0; ky < filterDim; ky++) {
+    int nky = filterDim - 1 - ky;
+    for (unsigned int kx = 0; kx < filterDim; kx++) {
+      int nkx = filterDim - 1 - kx;
+
+      int yy = y + (ky - filterCenter);
+      int xx = x + (kx - filterCenter);
+      if (xx >= 0 && xx < (int) width && yy >=0 && yy < (int) height)
+        aggregate += in[yy][xx] * filter[nky * filterDim + nkx];
+    }
+  }
+  aggregate *= filterFactor;
+  if (aggregate > 0) {
+    out[y][x] = (aggregate > 255) ? 255 : aggregate;
+  } else {
+    out[y][x] = 0;
+  }
+}
 
 
 // Apply convolutional filter on image data
@@ -199,29 +229,57 @@ int main(int argc, char **argv) {
     return ERROR_EXIT;
   }
 
+  // Pointers to GPU data locations
+  unsigned char *processChannel;
+  unsigned char *resultChannel;
+  int *filter;
+
+  // Initialize GPU data locations for image data
+  cudaErrorCheck(cudaMalloc((void **) &processChannel, imageChannel->width * imageChannel->height));
+  cudaErrorCheck(cudaMalloc((void **) &resultChannel, imageChannel->width * imageChannel->height));
+  cudaErrorCheck(cudaMalloc((void **) &filter), 9 * sizeof(int));
+
+  // Copy original image data to GPU memory
+  cudaErrorCheck(cudaMemcpy(resultChannel, imageChannel->rawdata, imageChannel->width * imageChannel->height, cudaMemcpyHostToDevice));
+  cudaErrorCheck(cudaMemcpy(filter, laplacian1Filter, 9 * sizeof(int), cudaMemcpyHostToDevice));
 
   //Here we do the actual computation!
   // imageChannel->data is a 2-dimensional array of unsigned char which is accessed row first ([y][x])
   bmpImageChannel *processImageChannel = newBmpImageChannel(imageChannel->width, imageChannel->height);
   for (unsigned int i = 0; i < iterations; i ++) {
-    applyFilter(processImageChannel->data,
-                imageChannel->data,
-                imageChannel->width,
-                imageChannel->height,
-                (int *)laplacian1Filter, 3, laplacian1FilterFactor
- //               (int *)laplacian2Filter, 3, laplacian2FilterFactor
- //               (int *)laplacian3Filter, 3, laplacian3FilterFactor
- //               (int *)gaussianFilter, 5, gaussianFilterFactor
-                );
-    //Swap the data pointers
-    unsigned char ** tmp = processImageChannel->data;
-    processImageChannel->data = imageChannel->data;
-    imageChannel->data = tmp;
-    unsigned char * tmp_raw = processImageChannel->rawdata;
-    processImageChannel->rawdata = imageChannel->rawdata;
-    imageChannel->rawdata = tmp_raw;
+    // CPU
+    if (CPU == 1) {
+      applyFilter(processImageChannel->data,
+                  imageChannel->data,
+                  imageChannel->width,
+                  imageChannel->height,
+                  (int *)laplacian1Filter, 3, laplacian1FilterFactor);
+      //Swap the data pointers
+      unsigned char ** tmp = processImageChannel->data;
+      processImageChannel->data = imageChannel->data;
+      imageChannel->data = tmp;
+      unsigned char * tmp_raw = processImageChannel->rawdata;
+      processImageChannel->rawdata = imageChannel->rawdata;
+      imageChannel->rawdata = tmp_raw;
+    }
+    // GPU
+    else {
+      dim3 gridBlock(imageChannel->width / BLOCKX, imageChannel->height / BLOCKY);
+      dim3 threadBlock(BLOCKX, BLOCKY);
+      device_calculate<<<gridBlock, threadBlock>>>(processChannel, resultChannel, imageChannel->width, imageChannel->height, filter, 3, laplacian1FilterFactor);
+      cudaErrorCheck(cudaGetLastError());
+      unsigned char *t = processChannel;
+      processChannel = resultChannel;
+      resultChannel = t;
+    }
   }
   freeBmpImageChannel(processImageChannel);
+  cudaFree(processChannel);
+  cudaFree(filter);
+
+  if (CPU == 0) {
+    cudaMemcpy(imageChannel->rawdata, resultChannel, imageChannel->width * imageChannel->height);
+  }
 
   // Map our single color image back to a normal BMP image with 3 color channels
   // mapEqual puts the color value on all three channels the same way
@@ -233,6 +291,7 @@ int main(int argc, char **argv) {
     return ERROR_EXIT;
   }
   freeBmpImageChannel(imageChannel);
+  cudaFree(resultChannel);
 
   //Write the image back to disk
   if (saveBmpImage(image, output) != 0) {
